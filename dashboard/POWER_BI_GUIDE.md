@@ -17,6 +17,7 @@ step-by-step guide to build the report.
 | `outputs/replenishment_recommendations.csv` | One row per SKU | 2 |
 | `outputs/supplier_performance.csv` | One row per supplier | 4 |
 | `outputs/executive_kpis.csv` | One row per KPI (base + scenarios) | 1 |
+| `outputs/inventory_trend.csv` | SKU × month-end (planned, Phase 9) | 1 |
 
 ## 2. Data model (star schema)
 
@@ -28,23 +29,29 @@ fact tables, relationship cardinality and filter direction.
 ### Page 1 — Executive Overview
 **Question answered:** *Where is the capital, and what is at risk?*
 - KPI cards: Total Inventory Value, Excess Inventory Value, Dead Stock Value,
-  Stockout Risk %, Service Level, Supplier OTIF
+  Stockout Risk %, Service Level (fill rate vs. target), Supplier OTIF —
+  every card uses the definitions in `docs/kpi_definitions.md`
 - Inventory value by health status
 - Inventory value by ABC class
-- Inventory trend
+- Inventory trend (24 month-end snapshots)
+- Turns / DIO / GMROI
 - Top inventory risks table (ranked by value at risk)
+- Scenario comparison (base vs. demand / service level / lead time), clearly
+  labelled as projections
 
 ### Page 2 — Inventory & Replenishment
 **Question answered:** *What should we order now?*
 - Days of supply distribution
 - Safety stock, reorder point and inventory position per SKU
 - Recommended orders (quantity, value, reason code)
+- MOQ-driven excess and projected reorder dates
 - Top stockout-risk SKUs
 
 ### Page 3 — Demand Planning
 **Question answered:** *How good is our forecast, and where is it biased?*
 - Historical demand vs. forecast
-- Forecast accuracy (WAPE) and bias by ABC-XYZ segment
+- Forecast accuracy (WAPE), bias and tracking-signal alerts by ABC-XYZ segment
+- Forecast value added vs. naive
 - Seasonality view
 - ABC-XYZ matrix (SKU count and value)
 

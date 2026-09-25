@@ -11,6 +11,9 @@ import pytest
 from src.config import (
     ABCConfig,
     ForecastConfig,
+    ReplenishmentConfig,
+    SafetyStockConfig,
+    WorkingCapitalConfig,
     XYZConfig,
     get_config,
     get_database_url,
@@ -50,6 +53,42 @@ def test_xyz_thresholds_must_be_ordered():
 def test_wma_weights_must_sum_to_one():
     with pytest.raises(ValueError):
         ForecastConfig(wma_weights=(0.5, 0.6))
+
+
+def test_smoothing_parameters_must_be_valid():
+    with pytest.raises(ValueError):
+        ForecastConfig(holt_beta=0.0)
+
+
+def test_sigma_source_must_be_known():
+    with pytest.raises(ValueError):
+        SafetyStockConfig(sigma_source="gut_feel")
+
+
+def test_service_levels_must_be_probabilities():
+    with pytest.raises(ValueError):
+        SafetyStockConfig(service_level_by_abc={"A": 1.0, "B": 0.95, "C": 0.9})
+
+
+def test_adi_threshold_cannot_be_below_one():
+    with pytest.raises(ValueError):
+        XYZConfig(adi_intermittent_threshold=0.9)
+
+
+def test_negative_review_period_rejected():
+    with pytest.raises(ValueError):
+        ReplenishmentConfig(review_period_months=-1)
+
+
+def test_carrying_cost_rate_must_be_fraction():
+    with pytest.raises(ValueError):
+        WorkingCapitalConfig(annual_carrying_cost_rate=25)
+
+
+def test_abc_and_xyz_use_same_window():
+    # Both dimensions must describe the same period or the matrix mixes eras.
+    config = get_config()
+    assert config.abc.window_months == config.xyz.window_months
 
 
 def test_default_config_has_class_differentiated_service_levels():

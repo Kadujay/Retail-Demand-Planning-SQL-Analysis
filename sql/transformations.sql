@@ -2,6 +2,7 @@
 -- transformations.sql — Analytical views
 -- =============================================================================
 -- Phase 3 (not yet implemented). Planned views: SKU monthly demand with
--- rolling averages, inventory position, supplier delivery performance
--- (on-time / in-full flags per PO line).
+-- rolling averages, inventory position (on hand + open PO remaining qty -
+-- allocated), and supplier delivery performance per PO line (split receipts
+-- summed; on-time measured against the ORIGINAL promised date).
 -- =============================================================================

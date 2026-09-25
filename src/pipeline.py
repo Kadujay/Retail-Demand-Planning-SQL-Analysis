@@ -1,8 +1,10 @@
 """End-to-end pipeline orchestration (built up across Phases 2-11).
 
-Planned stages: generate -> validate -> classify (ABC/XYZ) -> forecast ->
-safety stock / ROP -> inventory health -> supplier analytics ->
-replenishment -> working capital / KPIs -> scenarios -> export.
+Planned stages, in dependency order:
+generate -> validate -> classify (ABC/XYZ) -> forecast (+ error sigma) ->
+supplier analytics (lead-time sigma) -> safety stock / ROP ->
+inventory health -> replenishment -> working capital / KPIs ->
+scenarios -> export.
 
 Run with ``python -m src.pipeline``.
 """

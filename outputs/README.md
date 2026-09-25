@@ -5,10 +5,10 @@ definitions are in [`dashboard/DATA_DICTIONARY.md`](../dashboard/DATA_DICTIONARY
 
 | File | Produced in |
 |---|---|
-| `inventory_health.csv` | Phase 6 |
+| `inventory_health.csv` | Phase 7 |
 | `forecast_results.csv` | Phase 5 |
 | `replenishment_recommendations.csv` | Phase 8 |
-| `supplier_performance.csv` | Phase 7 |
+| `supplier_performance.csv` | Phase 6 |
 | `executive_kpis.csv` | Phase 9 |
 
 Files not generated yet.

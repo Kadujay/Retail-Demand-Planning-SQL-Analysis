@@ -1,100 +1,160 @@
 # Business Logic
 
 `methodology.md` defines *how* each metric is calculated. This document
-explains **why each metric matters, which decision it drives, and the
-trade-offs involved** — the questions a supply-chain manager actually asks.
+explains **the business context, who uses each output, which decision each
+metric drives, and the trade-offs involved**.
 
-## The decision the system supports
+## 1. The business
+
+A **fictional** wholesale distributor of industrial and maintenance supplies
+(no real company is represented; all data is synthetic):
+
+| Attribute | Value |
+|---|---|
+| Active SKUs | 5,000 across categories such as fasteners, electrical, safety/PPE, tools, HVAC, janitorial |
+| Suppliers | 50, mixed domestic (short, reliable lead times) and import (long, variable lead times) |
+| Planning cadence | Monthly replenishment run (periodic review) |
+| Customer promise | Ship from stock; unfilled order lines are usually lost to competitors |
+| Network | Single central distribution centre |
+
+### Situation the analysis responds to
+
+Management sees **both** symptoms at once — the classic sign of undifferentiated
+inventory policy:
+
+- Customers complain about stockouts on important items.
+- Finance complains that inventory (working capital) keeps growing.
+- Buyers use one rule of thumb for all SKUs and order to MOQ by habit.
+- Some suppliers are frequently late or short, and nobody quantifies the cost.
+
+### The question
 
 > **What should we order, when should we order it, and which inventory
 > problems should management address first?**
 
+## 2. Scope: what "control tower" means here
+
+"Control tower" is used in the **planning-analytics** sense: one consistent
+view of inventory risk, its causes (forecast, supplier, policy) and the
+recommended actions, refreshed each planning cycle.
+
+It is **not** a real-time logistics visibility platform (no shipment tracking,
+IoT or event streams). Saying this explicitly avoids over-claiming.
+
+## 3. Who uses the outputs
+
+| Stakeholder | Question they ask | Output |
+|---|---|---|
+| Buyer / supply planner | What do I order this cycle, how much, and why? | `replenishment_recommendations.csv`, Power BI page 2 |
+| Demand planner | Which forecasts are inaccurate or biased? | `forecast_results.csv`, page 3 |
+| Procurement / category manager | Which suppliers hurt service or inflate stock? | `supplier_performance.csv`, page 4 |
+| Supply chain manager / S&OP | What is the risk and cost of changing service levels or lead times? | Scenario KPIs, page 1 |
+| Finance (CFO / controller) | How much cash is tied up in excess and dead stock? | `executive_kpis.csv`, page 1 |
+
+## 4. Decisions supported
+
 | Question | Answered by | Output |
 |---|---|---|
-| What should we order? | Replenishment engine (ROP, order-up-to, MOQ, multiples) | `replenishment_recommendations.csv` |
-| When should we order it? | Inventory position vs. reorder point; projected inventory at lead-time end | Reason codes `STOCKOUT_RISK`, `BELOW_ROP`, `SAFETY_STOCK_RISK` |
-| What should management address first? | Inventory health × ABC class × value at risk; supplier segmentation | `inventory_health.csv`, `supplier_performance.csv`, `executive_kpis.csv` |
+| **What** to order | (R, s, S) policy with EOQ/MOQ/multiple lot sizing | Recommended quantity and value |
+| **When** to order | Inventory position vs. reorder point; projected reorder date for SKUs not yet due | Reason code, `projected_reorder_date` |
+| **What first** | Health status × ABC × **value at risk** | Ranked action list |
+| **Why** it happened | Forecast bias, supplier OTIF / lead-time variability, MOQ-driven excess | Root-cause columns and supplier segment |
 
-## Metric → decision map
+## 5. Metric → decision map
 
 | Metric | Why it matters | Decision it drives |
 |---|---|---|
-| ABC class | Concentrates control where money is | Review frequency, service-level target, planner ownership |
-| XYZ class | Indicates forecastability | How much to trust the forecast; buffer size; planning method |
-| ABC-XYZ segment | Combines value and risk | Differentiated inventory policy (see methodology §4) |
-| Forecast WAPE | Size of forecast error | Safety stock sizing; where to invest in better forecasting |
-| Forecast bias | Direction of error | Correct systematic over/under-forecasting before it becomes excess/stockouts |
-| Safety stock | Buffer against uncertainty | Inventory investment required for the chosen service level |
-| Reorder point | Trigger level | *When* to place an order |
+| ABC class | Concentrates control where the money is | Review frequency, service-level target, planner ownership |
+| XYZ class | Forecastability | Planning approach; how much to trust the forecast |
+| ABC-XYZ segment | Value × risk | Differentiated policy (methodology §4) |
+| WAPE / FVA | Size of forecast error; value of the method | Where to invest in forecasting effort |
+| Bias / tracking signal | Systematic direction of error | Correct over/under-forecasting before it becomes excess/stockouts |
+| Safety stock | Buffer for uncertainty | Inventory investment for the chosen service level |
+| Reorder point | Trigger level | When to order |
 | Inventory position | True available supply | Prevents double-ordering stock already on the way |
-| Days of supply | Coverage in time units | Comparable across SKUs; spots both shortage and excess |
-| Excess value | Capital above need | Stop ordering, cancel/push out POs, promotions, returns to vendor |
-| Dead-stock value | Capital at write-off risk | Liquidation, write-down, delisting decisions |
-| OTIF | Supplier reliability | Supplier reviews, sourcing strategy, safety-stock inputs |
-| Lead-time variability | Uncertainty of supply | Directly increases safety stock (methodology §9) |
-| Fill rate | Share of ordered quantity delivered | Partial deliveries cause hidden shortages |
-| Carrying cost | Annual cost of holding inventory | Quantifies the cost of excess and of higher service levels |
+| Days of supply | Coverage in time units | Comparable across SKUs; spots shortage and excess |
+| Stockout probability / revenue at risk | Likelihood and cost of running out | Expedite, reprioritise |
+| Excess value (on hand / on order) | Capital above need | Stop ordering, push out / cancel POs, rebalance |
+| Dead-stock value | Capital at write-off risk | Liquidate, return to vendor, write down, delist |
+| OTIF, fill rate | Supplier reliability | Supplier reviews, sourcing strategy |
+| Lead-time variability | Supply uncertainty | Directly raises safety stock (methodology §9) |
+| EOQ vs. MOQ | Ordering vs. holding cost | Lot size; MOQ negotiation |
+| Turns, DIO, GMROI | Inventory productivity | Where inventory earns its keep, where it doesn't |
+| Carrying cost | Annual cost of holding stock | Quantifies excess and service-level decisions in money |
 
-## Inventory health status — rationale
+## 6. Inventory health status — rationale
 
-Status is assigned in **priority order** so that every SKU has exactly one,
-most-urgent status (e.g. an out-of-stock SKU is never labelled "excess").
+Statuses are assigned in **priority order**, so every SKU has exactly one,
+most-urgent status (an out-of-stock SKU is never labelled "excess").
 
 | Status | Business meaning | Typical action |
 |---|---|---|
-| STOCKOUT | No stock while demand exists — lost sales / backorders now | Expedite, alternative supplier, customer communication |
-| CRITICAL | Below safety stock — buffer consumed, stockout likely before replenishment | Expedite open POs, place order immediately |
-| BELOW_REORDER_POINT | Normal trigger reached | Place standard replenishment order |
-| DEAD_STOCK | Stock with no recent demand | Liquidate, return to vendor, write down, stop replenishment |
-| EXCESS | More than target coverage | Stop ordering, push out / cancel POs, rebalance |
+| STOCKOUT | No stock while demand exists — sales being lost now | Expedite, alternative source, customer communication |
+| CRITICAL | Below safety stock — buffer consumed | Expedite open POs; order immediately |
+| BELOW_REORDER_POINT | Normal trigger reached | Standard replenishment order |
+| DEAD_STOCK | Stock with no demand in 6 months (and not seasonal off-season) | Liquidate, return to vendor, write down, stop replenishment |
+| EXCESS | Above policy maximum + tolerance | Stop ordering, push out / cancel POs |
 | HEALTHY | Within policy | No action |
 
-**Threshold choices (configurable in `InventoryHealthConfig`):**
+**Threshold choices** (`InventoryHealthConfig`):
 
-- `excess_days_of_supply = 120`: stock beyond safety stock + ~4 months of
-  forward demand. For a distributor with typical 2–8-week lead times and
-  monthly review, ~4 months is well above what the replenishment cycle
-  needs, so a flag here indicates a real problem rather than normal cycle
-  stock. Businesses with long lead times (imports) would raise it.
-- `dead_stock_months_without_demand = 6`: no sales for two quarters. Short
-  enough to act before obsolescence, long enough not to flag normal
-  slow-movers. Caveat: a seasonal item with a short season can legitimately
-  go 6 months without sales off-season. Phase 6 checks this interaction
-  (e.g. by also requiring no demand in the upcoming months of last year)
-  before an item is labelled dead stock.
+- **Excess = above the policy maximum `S` + 30 days of demand.** Tying excess to
+  the same maximum the replenishment engine orders up to means the health view
+  and order recommendations can never disagree. The 30-day tolerance absorbs
+  normal forecast noise; without it, a SKU one unit above max would be flagged.
+  A business preferring a simple rule of thumb (e.g. "> 6 months of supply")
+  can swap the definition — the trade-off is logged in the decision log.
+- **Dead stock = no demand for 6 months.** Two quarters is short enough to act
+  before obsolescence and long enough not to flag normal slow movers. Seasonal
+  items are protected by also checking last year's demand in the upcoming
+  months.
 
-## Supplier segmentation — rationale
-
-Thresholds in `SupplierConfig`:
+## 7. Supplier segmentation — rationale
 
 | Segment | Rule | Rationale |
 |---|---|---|
-| Reliable | OTIF ≥ 95% and lead-time CV ≤ 0.30 | 95% OTIF is a common contractual target; CV ≤ 0.30 means lead time rarely deviates by more than ~a third |
-| Watch | OTIF 85–95%, or lead-time CV > 0.30 | Performance acceptable but costing safety stock; monitor and discuss |
-| At Risk | OTIF < 85% | Frequent failures; driving stockouts or excess safety stock; escalation / dual sourcing |
+| Reliable | OTIF ≥ 95% and lead-time CV ≤ 0.30 | 95% OTIF is a common contractual target; CV ≤ 0.30 means lead time rarely strays by more than about a third |
+| Watch | OTIF 85–95%, or lead-time CV > 0.30 | Acceptable delivery, but variability is costing safety stock |
+| At Risk | OTIF < 85% | Frequent failures; escalation, corrective action plan or dual sourcing |
 
-Segments are always reported next to **spend**, because the business
-priority is "high-spend and at-risk", not "at-risk" alone.
+Segments are always reported next to **spend**: the priority is
+"high-spend *and* at-risk", not "at-risk" alone.
 
-## Key trade-offs made visible
+## 8. Key trade-offs made visible
 
 | Lever | Effect | Where it is shown |
 |---|---|---|
-| Higher service level | More safety stock → higher inventory investment → lower stockout risk | Scenario: 90/95/98% service level |
-| Lower inventory | Lower working capital and carrying cost → higher stockout risk | Scenario comparison; health status mix |
-| Higher MOQ | Fewer orders → higher average inventory (MOQ-driven excess) | `moq_excess_units` in replenishment output |
-| Longer lead time | Higher lead-time demand and safety stock → more inventory, more exposure | Scenario: +20% lead time |
-| Poor supplier OTIF / variable lead time | Higher σ_L → higher safety stock | Supplier → SKU safety-stock link |
-| Forecast bias | Positive bias → excess; negative bias → stockouts | Forecast results vs. inventory health |
+| Higher service level | More safety stock → more working capital → fewer stockouts (non-linear) | Scenario: 90 / 95 / 98% |
+| Lower inventory | Lower working capital and carrying cost → higher stockout risk | Scenario comparison, health mix |
+| Higher MOQ | Fewer orders → higher average inventory | `moq_excess_units` / value |
+| Larger lots vs. frequent orders | Holding cost vs. ordering cost | EOQ reference vs. actual lot |
+| Longer lead time | More protection demand and safety stock → more inventory, earlier orders | Scenario: +20% lead time |
+| Poor OTIF / variable lead time | Higher σ_L → higher safety stock | Supplier → SKU safety-stock link |
+| Forecast bias | Positive → excess; negative → stockouts | Forecast results vs. health status |
+| Longer review period | Larger protection interval → more safety stock | Config `review_period_months` |
 
-## Prioritisation logic for management
+## 9. Prioritisation logic for management
 
-Problems are ranked by **financial exposure**, not count of SKUs:
+Problems are ranked by **money at stake**, not SKU counts:
 
-1. Stockout / critical **A** items (revenue and customer risk).
-2. High-value excess and dead stock (cash release opportunity).
-3. High-spend suppliers in *At Risk* segment (systemic cause of 1).
-4. Biased forecasts on A/B items (systemic cause of 1 and 2).
+1. **Revenue at risk** on STOCKOUT / CRITICAL items (A items first).
+2. **Cash release**: high-value dead and excess stock; open POs that can be
+   pushed out (`excess_on_order`).
+3. **Systemic supplier causes**: high-spend *At Risk* suppliers.
+4. **Systemic forecast causes**: A/B items with tracking signal outside ±4.
 
-The exact ranking view is implemented in Phases 6–9 and documented in the
-Power BI guide.
+## 10. What success would look like
+
+If the company adopted the recommendations, it would track (baseline values
+are filled in from the synthetic results in Phase 12):
+
+| KPI | Direction |
+|---|---|
+| Fill rate on A items | ↑ towards target |
+| Excess + dead-stock share of inventory value | ↓ |
+| Inventory turns / DIO | ↑ turns / ↓ DIO |
+| Forecast bias on A/B items | → 0 |
+| Spend with *At Risk* suppliers | ↓ |
+
+The project does not claim that these improvements would be realised — it
+provides the analysis a planning team would use to pursue them.

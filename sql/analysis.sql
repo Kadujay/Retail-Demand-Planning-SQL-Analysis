@@ -4,7 +4,8 @@
 -- Phase 3 (not yet implemented). Each query will start with the business
 -- question it answers, e.g.:
 --   * Which SKUs make up 80% of consumption value? (ABC, window functions)
---   * What is inventory turnover and days of supply by category?
+--   * What is inventory turnover, DIO and days of supply by category?
+--   * What fill rate did we actually achieve by ABC class (shipped / ordered)?
 --   * Which A items are at stockout risk?
 --   * What is each supplier's OTIF and lead-time variability?
 --   * Where is excess inventory concentrated?

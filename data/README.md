@@ -19,10 +19,17 @@ results are visible without running anything.
 |---|---|---|
 | products | SKU | 5,000 |
 | suppliers | Supplier | 50 |
-| demand_monthly | SKU × month (24 months) | 120,000 |
-| inventory_snapshot | SKU at as-of date | 5,000 |
+| demand_monthly | SKU × month: customer `ordered_qty` and `shipped_qty` (24 months) | ~120,000 |
+| inventory_snapshot | SKU × month-end (24 snapshots; latest = as-of position) | ~120,000 |
 | purchase_orders | PO line | tbd |
 | supplier_deliveries | Receipt against PO line | tbd |
 
 Demand and supplier archetypes and the correlations built into the data are
 documented in Phase 2.
+
+## Why orders *and* shipments
+
+Demand is captured as customer order quantity, with shipments stored
+separately. Forecasting on shipments would bake past stockouts into future
+forecasts (censored demand), and the ratio shipped / ordered gives a measured
+fill rate. See `docs/methodology.md` §1.

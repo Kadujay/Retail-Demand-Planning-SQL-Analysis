@@ -20,6 +20,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
+from typing import Literal
 
 from scipy.stats import norm
 
@@ -89,6 +90,9 @@ class ABCConfig:
 
     a_threshold: float = 0.80
     b_threshold: float = 0.95
+    # Trailing window used for annual consumption value. 12 months reflects
+    # the current value mix and removes seasonality from the annual total.
+    window_months: int = 12
 
     def __post_init__(self) -> None:
         if not 0 < self.a_threshold < self.b_threshold < 1:
@@ -105,21 +109,26 @@ class XYZConfig:
     CV = standard deviation / mean of monthly demand.
     X: CV <= x_threshold, Y: x_threshold < CV <= y_threshold, Z: CV > y_threshold.
 
-    ``min_nonzero_periods``: a SKU with fewer non-zero demand months than
-    this is treated as intermittent and forced to Z, because CV on a handful
-    of observations is statistically meaningless.
+    ``adi_intermittent_threshold``: average demand interval (periods per
+    non-zero demand). ADI > 1.32 is the Syntetos-Boylan-Croston cut-off for
+    intermittent demand; such SKUs are classed Z because CV of mostly-zero
+    series is not a reliable forecastability measure.
     ``min_history_months``: SKUs younger than this (new products) are
-    flagged rather than classified on insufficient history.
+    flagged NEW rather than classified on insufficient history.
     """
 
     x_threshold: float = 0.50
     y_threshold: float = 1.00
-    min_nonzero_periods: int = 6
+    adi_intermittent_threshold: float = 1.32
     min_history_months: int = 6
+    # Same trailing window as ABC so both dimensions describe the same period.
+    window_months: int = 12
 
     def __post_init__(self) -> None:
         if not 0 < self.x_threshold < self.y_threshold:
             raise ValueError("XYZ thresholds must satisfy 0 < X < Y")
+        if self.adi_intermittent_threshold < 1:
+            raise ValueError("ADI threshold must be >= 1 (ADI is never below 1)")
 
 
 # --------------------------------------------------------------------------
@@ -135,15 +144,26 @@ class ForecastConfig:
     # Weights for weighted moving average, oldest -> newest; must sum to 1.
     wma_weights: tuple[float, ...] = (0.2, 0.3, 0.5)
     ses_alpha: float = 0.3
+    # Holt's linear trend: level and trend smoothing. Fixed (not optimised)
+    # so the method stays explainable and stable on short histories.
+    holt_alpha: float = 0.3
+    holt_beta: float = 0.1
     season_length: int = 12
+    # Seasonal naive is only a candidate when two full seasonal cycles exist,
+    # so a repeating yearly pattern can actually be observed.
+    seasonal_naive_min_history_months: int = 24
     # Planning horizon for forward-looking forecasts (months).
     horizon_months: int = 6
+    # Tracking signal = cumulative error / MAD. |TS| beyond this flags a
+    # persistently biased forecast (4 is the common textbook control limit).
+    tracking_signal_limit: float = 4.0
 
     def __post_init__(self) -> None:
         if abs(sum(self.wma_weights) - 1.0) > 1e-9:
             raise ValueError("wma_weights must sum to 1")
-        if not 0 < self.ses_alpha <= 1:
-            raise ValueError("ses_alpha must be in (0, 1]")
+        for name in ("ses_alpha", "holt_alpha", "holt_beta"):
+            if not 0 < getattr(self, name) <= 1:
+                raise ValueError(f"{name} must be in (0, 1]")
 
 
 # --------------------------------------------------------------------------
@@ -181,6 +201,9 @@ def service_level_to_z(service_level: float) -> float:
     return float(norm.ppf(service_level))
 
 
+SigmaSource = Literal["forecast_error", "demand"]
+
+
 @dataclass(frozen=True)
 class SafetyStockConfig:
     """Safety-stock policy settings."""
@@ -191,6 +214,21 @@ class SafetyStockConfig:
     # If True, use the combined demand + lead-time variability formula
     # instead of the demand-only formula (see docs/methodology.md).
     include_lead_time_variability: bool = True
+    # Which uncertainty safety stock protects against:
+    # "forecast_error" (default) = RMSE of one-step-ahead forecast errors, so
+    # predictable movements (trend, seasonality) are not double-counted as
+    # risk; "demand" = std of raw monthly demand (textbook simplification).
+    sigma_source: SigmaSource = "forecast_error"
+    # Minimum forecast-error observations before sigma_source="forecast_error"
+    # is trusted; otherwise fall back to demand std.
+    min_error_observations: int = 6
+
+    def __post_init__(self) -> None:
+        if self.sigma_source not in ("forecast_error", "demand"):
+            raise ValueError("sigma_source must be 'forecast_error' or 'demand'")
+        for abc_class, level in self.service_level_by_abc.items():
+            if not 0 < level < 1:
+                raise ValueError(f"service level for {abc_class} must be in (0, 1)")
 
 
 # --------------------------------------------------------------------------
@@ -200,15 +238,19 @@ class SafetyStockConfig:
 class InventoryHealthConfig:
     """Thresholds for inventory health status.
 
-    Days-of-supply based rules, evaluated in priority order:
-    STOCKOUT (on hand <= 0) -> CRITICAL (on hand < safety stock) ->
-    BELOW_REORDER_POINT (inventory position < ROP) -> DEAD_STOCK ->
-    EXCESS -> HEALTHY. See docs/business_logic.md for the full rules.
+    Rules are evaluated in priority order:
+    STOCKOUT -> CRITICAL -> BELOW_REORDER_POINT -> DEAD_STOCK -> EXCESS ->
+    HEALTHY. See docs/business_logic.md for the full rules.
+
+    Excess is measured against the SAME policy maximum the replenishment
+    engine orders up to (max stock level), so the health report and the
+    order recommendations can never contradict each other.
     """
 
-    # Inventory beyond this many days of forward demand (on top of safety
-    # stock) is considered excess.
-    excess_days_of_supply: float = 120.0
+    # Tolerance above the policy maximum before stock is called excess,
+    # expressed in days of forward demand. Absorbs normal forecast noise so
+    # that a SKU one unit above max is not flagged.
+    excess_tolerance_days: float = 30.0
     # No demand in this many trailing months -> dead stock candidate.
     dead_stock_months_without_demand: int = 6
 
@@ -220,11 +262,16 @@ class InventoryHealthConfig:
 class SupplierConfig:
     """Definitions and segmentation thresholds for supplier analytics."""
 
-    # A delivery is "on time" if it arrives no later than this many days
-    # after the promised date (a common grace window; 0 = strict).
+    # On time = full quantity received no later than the ORIGINAL promised
+    # date + this tolerance. Re-promised dates are ignored so lateness cannot
+    # be hidden by moving the target. Early receipts count as on time.
     on_time_tolerance_days: int = 0
-    # A delivery is "in full" if received qty >= this share of ordered qty.
+    # In full = cumulative qty received by the on-time cut-off >= this share
+    # of ordered qty (split deliveries are summed per PO line).
     in_full_tolerance: float = 1.0
+    # Lead-time statistics are pooled at supplier level (SKU-level samples
+    # are too small); suppliers with fewer receipts are flagged low-confidence.
+    min_receipts_for_stats: int = 10
     # Segmentation thresholds (documented in docs/business_logic.md).
     otif_target: float = 0.95
     otif_watch: float = 0.85
@@ -236,14 +283,25 @@ class SupplierConfig:
 # --------------------------------------------------------------------------
 @dataclass(frozen=True)
 class ReplenishmentConfig:
-    """Order-up-to policy settings.
+    """Periodic-review (R, s, S) policy settings.
 
-    The target (order-up-to) level covers forecast demand over the lead
-    time plus one review period, plus safety stock, so an order placed now
-    lasts until the next planning run can react.
+    The planning run happens every ``review_period_months``. Between runs
+    nobody can react, so the protection interval is lead time + review
+    period, and the reorder point / safety stock must cover both.
+    Setting the review period to 0 reduces the policy to continuous review
+    (ROP = lead-time demand + safety stock).
     """
 
     review_period_months: float = 1.0
+    # Administrative cost of raising, receiving and paying one purchase
+    # order. Used only for the EOQ lot-size reference.
+    ordering_cost_per_order: float = 75.0
+
+    def __post_init__(self) -> None:
+        if self.review_period_months < 0:
+            raise ValueError("review_period_months must be >= 0")
+        if self.ordering_cost_per_order < 0:
+            raise ValueError("ordering_cost_per_order must be >= 0")
 
 
 # --------------------------------------------------------------------------
@@ -255,7 +313,12 @@ class WorkingCapitalConfig:
 
     # Annual carrying cost as a share of inventory value (capital cost,
     # storage, insurance, obsolescence). 20-30% is a typical range.
+    # Also the holding-cost rate in the EOQ formula.
     annual_carrying_cost_rate: float = 0.25
+
+    def __post_init__(self) -> None:
+        if not 0 < self.annual_carrying_cost_rate < 1:
+            raise ValueError("annual_carrying_cost_rate must be in (0, 1)")
 
 
 # --------------------------------------------------------------------------
