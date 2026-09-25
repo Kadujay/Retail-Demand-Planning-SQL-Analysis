@@ -1,0 +1,18 @@
+[project]
+name = "supply-chain-inventory-control-tower"
+version = "0.1.0"
+description = "Inventory control tower: ABC-XYZ, forecasting, safety stock, replenishment and supplier analytics on synthetic data."
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["notebooks"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N"]

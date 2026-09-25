@@ -1,0 +1,12 @@
+-- =============================================================================
+-- analysis.sql — Business questions answered in SQL
+-- =============================================================================
+-- Phase 3 (not yet implemented). Each query will start with the business
+-- question it answers, e.g.:
+--   * Which SKUs make up 80% of consumption value? (ABC, window functions)
+--   * What is inventory turnover and days of supply by category?
+--   * Which A items are at stockout risk?
+--   * What is each supplier's OTIF and lead-time variability?
+--   * Where is excess inventory concentrated?
+--   * How is demand trending (rolling 3-month, month-over-month)?
+-- =============================================================================

@@ -1,0 +1,21 @@
+# Core analytics
+pandas>=2.2,<4
+numpy>=1.26,<3
+scipy>=1.12,<2
+statsmodels>=0.14,<1
+
+# Output formats (Parquet for Power BI)
+pyarrow>=15
+
+# PostgreSQL access
+SQLAlchemy>=2.0,<3
+psycopg[binary]>=3.1,<4
+python-dotenv>=1.0
+
+# Notebooks (exploration only; the pipeline does not depend on them)
+jupyter>=1.0
+matplotlib>=3.8
+
+# Testing & linting
+pytest>=8.0
+ruff>=0.5

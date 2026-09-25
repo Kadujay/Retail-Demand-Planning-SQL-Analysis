@@ -1,0 +1,7 @@
+-- =============================================================================
+-- transformations.sql — Analytical views
+-- =============================================================================
+-- Phase 3 (not yet implemented). Planned views: SKU monthly demand with
+-- rolling averages, inventory position, supplier delivery performance
+-- (on-time / in-full flags per PO line).
+-- =============================================================================

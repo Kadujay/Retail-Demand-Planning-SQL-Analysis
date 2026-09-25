@@ -1,0 +1,6 @@
+-- =============================================================================
+-- seed.sql — Load synthetic CSVs into the schema
+-- =============================================================================
+-- Phase 3 (not yet implemented). Uses \copy from data/raw/ so that the load
+-- runs client-side without superuser privileges.
+-- =============================================================================

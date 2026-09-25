@@ -1,0 +1,11 @@
+-- =============================================================================
+-- schema.sql — PostgreSQL star schema for the Inventory Control Tower
+-- =============================================================================
+-- Phase 3 (not yet implemented).
+--
+-- Planned tables: dim_product, dim_supplier, dim_date, fact_demand,
+-- fact_inventory, fact_purchase_order, fact_supplier_delivery.
+-- Primary/foreign keys, CHECK constraints (non-negative quantities and prices,
+-- valid dates) and indexes on join / filter columns.
+-- Draft ERD: docs/methodology.md section 16.
+-- =============================================================================
