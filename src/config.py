@@ -54,22 +54,53 @@ class PathConfig:
     output_dir: Path = field(
         default_factory=lambda: _path_from_env("OUTPUT_DIR", PROJECT_ROOT / "outputs")
     )
+    # Generator "answer key" (intended patterns / supplier archetypes).
+    # Kept apart from raw data so analytics can never use it as a feature.
+    synthetic_truth_dir: Path = field(
+        default_factory=lambda: _path_from_env(
+            "SYNTHETIC_TRUTH_DIR", PROJECT_ROOT / "data" / "synthetic_truth"
+        )
+    )
     sql_dir: Path = PROJECT_ROOT / "sql"
 
 
 # --------------------------------------------------------------------------
 # Synthetic data generation
 # --------------------------------------------------------------------------
+DEFAULT_RANDOM_SEED: int = 42
+
+
+def _seed_from_env() -> int:
+    """Seed from SYNTHETIC_DATA_SEED if set, else the default (42)."""
+    value = os.getenv("SYNTHETIC_DATA_SEED")
+    return int(value) if value else DEFAULT_RANDOM_SEED
+
+
 @dataclass(frozen=True)
 class DataGenerationConfig:
-    """Size and reproducibility settings for the synthetic dataset."""
+    """Size and reproducibility settings for the synthetic dataset.
 
-    random_seed: int = 42
+    The same seed always produces byte-identical tables. Override the seed
+    with ``SYNTHETIC_DATA_SEED`` or ``python -m src.pipeline --seed N``.
+    """
+
+    random_seed: int = field(default_factory=_seed_from_env)
     n_skus: int = 5_000
     n_suppliers: int = 50
     n_history_months: int = 24
-    # Last month of history; the "as-of" date for inventory snapshots.
+    # Last month of history; the "as-of" date is its last day.
     history_end_month: str = "2025-12"
+    # Months simulated before the history window and then discarded, so the
+    # first reported month already has realistic stock and open POs.
+    burn_in_months: int = 12
+
+    def __post_init__(self) -> None:
+        if self.n_skus < 1 or self.n_suppliers < 1:
+            raise ValueError("n_skus and n_suppliers must be positive")
+        if self.n_history_months < 13:
+            raise ValueError("n_history_months must be >= 13 (seasonality needs > 1 year)")
+        if self.burn_in_months < 0:
+            raise ValueError("burn_in_months must be >= 0")
 
 
 # --------------------------------------------------------------------------

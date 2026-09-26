@@ -1,0 +1,41 @@
+check,table,severity,status,failed_rows,total_rows,description
+duplicate_records,suppliers,ERROR,PASS,0,50,Rows sharing primary key ['supplier_id']
+duplicate_records,products,ERROR,PASS,0,5000,Rows sharing primary key ['sku_id']
+duplicate_records,demand_monthly,ERROR,PASS,0,114424,"Rows sharing primary key ['sku_id', 'month_start']"
+duplicate_records,inventory_snapshot,ERROR,PASS,0,114424,"Rows sharing primary key ['sku_id', 'month_end']"
+duplicate_records,purchase_orders,ERROR,PASS,0,35684,Rows sharing primary key ['po_line_id']
+duplicate_records,supplier_deliveries,ERROR,PASS,0,36907,Rows sharing primary key ['receipt_id']
+missing_values,suppliers,ERROR,PASS,0,50,"Null in required columns ['supplier_id', 'quoted_lead_time_days']"
+missing_values,products,ERROR,PASS,0,5000,"Null in required columns ['sku_id', 'category', 'supplier_id', 'unit_cost', 'unit_price', 'moq']"
+missing_values,demand_monthly,ERROR,PASS,0,114424,"Null in required columns ['sku_id', 'month_start', 'ordered_qty', 'shipped_qty']"
+missing_values,inventory_snapshot,ERROR,PASS,0,114424,"Null in required columns ['sku_id', 'month_end', 'on_hand_qty', 'allocated_qty']"
+missing_values,purchase_orders,ERROR,PASS,0,35684,"Null in required columns ['po_line_id', 'sku_id', 'supplier_id', 'order_date', 'promised_date', 'ordered_qty']"
+missing_values,supplier_deliveries,ERROR,PASS,0,36907,"Null in required columns ['receipt_id', 'po_line_id', 'receipt_date', 'received_qty']"
+missing_unit_cost,products,ERROR,PASS,0,5000,Unit cost missing: inventory cannot be valued
+missing_sku,demand_monthly,ERROR,PASS,0,114424,demand_monthly.sku_id not found in master data
+missing_sku,inventory_snapshot,ERROR,PASS,0,114424,inventory_snapshot.sku_id not found in master data
+missing_sku,purchase_orders,ERROR,PASS,0,35684,purchase_orders.sku_id not found in master data
+missing_supplier,products,ERROR,PASS,0,5000,products.supplier_id not found in master data
+missing_supplier,purchase_orders,ERROR,PASS,0,35684,purchase_orders.supplier_id not found in master data
+missing_po_line,supplier_deliveries,ERROR,PASS,0,36907,supplier_deliveries.po_line_id not found in master data
+non_positive_cost,products,ERROR,PASS,0,5000,Unit cost <= 0
+non_positive_price,products,ERROR,PASS,0,5000,Selling price <= 0
+price_below_cost,products,WARNING,PASS,0,5000,Selling price below unit cost (negative margin)
+non_positive_po_price,purchase_orders,ERROR,PASS,0,35684,PO unit price <= 0
+negative_inventory,inventory_snapshot,ERROR,PASS,0,114424,Negative on-hand or allocated quantity
+allocated_exceeds_on_hand,inventory_snapshot,WARNING,PASS,0,114424,Allocated more than physically on hand
+negative_demand,demand_monthly,ERROR,PASS,0,114424,Negative ordered or shipped quantity
+shipped_exceeds_ordered,demand_monthly,ERROR,PASS,0,114424,Shipped more than customers ordered
+non_positive_po_qty,purchase_orders,ERROR,PASS,0,35684,PO line quantity <= 0
+non_positive_receipt_qty,supplier_deliveries,ERROR,PASS,0,36907,Receipt quantity <= 0
+over_receipt,purchase_orders,WARNING,PASS,0,35684,Received > ordered by more than 5%
+invalid_moq,products,ERROR,PASS,0,5000,MOQ or order multiple < 1
+moq_not_multiple,products,WARNING,PASS,0,5000,MOQ not a whole number of order multiples
+impossible_quoted_lead_time,suppliers/products,ERROR,PASS,0,5050,Quoted lead time <= 0 or > 365 days
+impossible_actual_lead_time,supplier_deliveries,ERROR,PASS,0,36907,Actual lead time < 0 or > 365 days
+promised_before_order,purchase_orders,ERROR,PASS,0,35684,Promised date earlier than order date
+receipt_before_order,supplier_deliveries,ERROR,PASS,0,36907,Goods received before they were ordered
+future_dated_records,all,ERROR,PASS,0,301439,Dated after as-of 2025-12-31
+launch_after_as_of,products,ERROR,PASS,0,5000,Product launched after as-of date
+demand_before_launch,demand_monthly,ERROR,PASS,0,114424,Demand recorded before the product existed
+zero_demand_12m,demand_monthly,INFO,INFO,97,5000,SKUs with no customer orders in the last 12 months (dead-stock candidates)

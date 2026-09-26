@@ -30,8 +30,10 @@ htmlcov/
 # without running anything.
 data/raw/*
 data/processed/*
+data/synthetic_truth/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+!data/synthetic_truth/.gitkeep
 *.parquet
 
 # Power BI local artefacts

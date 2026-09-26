@@ -3,6 +3,12 @@ name = "supply-chain-inventory-control-tower"
 version = "0.1.0"
 description = "Inventory control tower: ABC-XYZ, forecasting, safety stock, replenishment and supplier analytics on synthetic data."
 requires-python = ">=3.11"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Kadujay" }]
+
+[project.urls]
+Repository = "https://github.com/Kadujay/supply-chain-inventory-control-tower"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

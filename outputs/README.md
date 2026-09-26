@@ -5,10 +5,11 @@ definitions are in [`dashboard/DATA_DICTIONARY.md`](../dashboard/DATA_DICTIONARY
 
 | File | Produced in |
 |---|---|
+| `data_quality_report.csv` | Phase 2 ✅ |
 | `inventory_health.csv` | Phase 7 |
 | `forecast_results.csv` | Phase 5 |
 | `replenishment_recommendations.csv` | Phase 8 |
 | `supplier_performance.csv` | Phase 6 |
 | `executive_kpis.csv` | Phase 9 |
 
-Files not generated yet.
+Other files are produced by later phases.

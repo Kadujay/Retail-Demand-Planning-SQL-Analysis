@@ -22,3 +22,9 @@ use X?" questions.
 | 14 | Demand signal | Customer orders (with shipments separate) | Shipments / invoices | Shipments are censored by stockouts |
 | 15 | Scenario engine | Re-run the same functions with modified config | Separate simulation model | One set of tested logic; no divergence between base and scenario |
 | 16 | Build order | Supplier analytics (Phase 6) before safety stock (Phase 7) | Original plan (safety stock first) | Safety stock needs supplier σ_L |
+| 17 | Synthetic operations | Simulate a legacy buyer rule + supplier behaviour month by month | Paint stockouts/excess directly onto the data | Problems emerge from causes (lagging averages, MOQs, unreliable suppliers), so the analysis finds real mechanisms, and stock balances reconcile exactly |
+| 18 | Legacy buyer averaging window | 6-month trailing average | 3-month average | 3 months over-reacted to lumpy orders (44% of value above 6 months of supply — implausible); 6 months gave ~24% and is a common ERP default |
+| 19 | Burn-in | 12 months | 6 months | 6 months left an artificial 20% inventory decline in early 2024 |
+| 20 | Volume dispersion | `volume ∝ cost^−0.45`, log-sd 1.3 | `cost^−0.6`, log-sd 0.8 | First version put 80% of value in 40% of SKUs — too flat for a distributor; now ~24% |
+| 21 | Answer key | Separate `synthetic_truth/` folder | Columns on the raw tables | Prevents the generator's labels from leaking into analysis |
+| 22 | Dirty data | Clean generator; defects injected in tests | Randomly dirty generator | Keeps analysis interpretable while proving each validation check works |

@@ -506,6 +506,7 @@ erDiagram
         numeric unit_price
         int moq
         int order_multiple
+        int supplier_lead_time_days
         date launch_date
         text lifecycle_status
     }
@@ -535,6 +536,7 @@ erDiagram
     }
     fact_purchase_order {
         text po_line_id PK
+        text po_number
         text sku_id FK
         text supplier_id FK
         date order_date
@@ -553,4 +555,5 @@ erDiagram
 
 Month-end inventory snapshots (24 months) support the inventory trend,
 average inventory for turns/DIO, and stockout-month history; the latest
-snapshot is the as-of position for planning.
+snapshot is the as-of position for planning. The raw files behind these
+tables, with column definitions, are described in [`data/README.md`](../data/README.md).
