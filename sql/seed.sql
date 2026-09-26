@@ -2,8 +2,11 @@
 -- seed.sql — Reference data that does not come from the ERP extract
 -- =============================================================================
 -- The calendar dimension is generated, not loaded: one row per day from
--- 2023-01-01 (covers POs still in transit when the history window starts) to
--- 2026-12-31 (covers promised dates beyond the as-of date).
+-- 1 January of the year before the history window (covers POs still in
+-- transit when the window starts) to 31 December of the year after the as-of
+-- date (covers promised dates beyond it). The loader binds :start_date and
+-- :end_date from DataGenerationConfig, so changing the history window in
+-- config.py never leaves fact dates outside the calendar.
 --
 -- Operational data (products, demand, POs, ...) is NOT loaded here: it goes
 -- through `python -m src.database load`, which validates it first.
@@ -24,4 +27,4 @@ SELECT
     d::date = (date_trunc('month', d) + INTERVAL '1 month - 1 day')::date AS is_month_end,
     EXTRACT(WEEK FROM d)::smallint                                  AS iso_week,
     EXTRACT(ISODOW FROM d)::smallint                                AS day_of_week
-FROM generate_series(DATE '2023-01-01', DATE '2026-12-31', INTERVAL '1 day') AS g (d);
+FROM generate_series(CAST(:start_date AS date), CAST(:end_date AS date), INTERVAL '1 day') AS g (d);

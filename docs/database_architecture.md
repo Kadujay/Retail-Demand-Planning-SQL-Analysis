@@ -145,7 +145,9 @@ erDiagram
   derives dead-stock candidates from demand instead of trusting the flag.
 
 ### `core.dim_date`
-- **Grain:** one row = one calendar day (2023-01-01 to 2026-12-31).
+- **Grain:** one row = one calendar day, from 1 January of the year before the
+  history window to 31 December of the year after it (2023-01-01 to 2026-12-31 by
+  default; derived from `config.py` so fact dates always fall inside it).
 - **PK:** `date_key`.
 - **Why it exists:** a single calendar for monthly facts (joined on month start
   or month end) and daily events (PO and receipt dates). It is daily because

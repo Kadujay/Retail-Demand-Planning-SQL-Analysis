@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from src.config import DAYS_PER_MONTH
 from src.database import (
     RAW_TO_CORE,
+    calendar_range,
     export_parquet,
     load_validated_data,
     planning_parameters,
@@ -150,9 +151,10 @@ def test_row_counts_match_raw_extract(db_engine, raw):
         assert n == len(raw[raw_name]), core_name
 
 
-def test_calendar_covers_every_fact_date(db_engine):
+def test_calendar_is_continuous_and_follows_config(db_engine, db_config):
     days = q(db_engine, "SELECT min(date_key) lo, max(date_key) hi, count(*) n FROM core.dim_date")
     assert days["n"].iloc[0] == (days["hi"].iloc[0] - days["lo"].iloc[0]).days + 1
+    assert (days["lo"].iloc[0], days["hi"].iloc[0]) == calendar_range(db_config)
 
 
 def test_foreign_key_rejects_orphan_rows(db_engine):

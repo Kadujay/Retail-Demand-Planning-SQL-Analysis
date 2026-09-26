@@ -34,6 +34,7 @@ import logging
 import re
 import sys
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -174,10 +175,21 @@ def planning_parameters(config: Config) -> list[tuple[str, float, str, str]]:
     ]
 
 
+def calendar_range(config: Config) -> tuple[date, date]:
+    """Calendar coverage: the year before the history window to the year after it ends."""
+    end = pd.Period(config.data.history_end_month, freq="M")
+    start = end - (config.data.n_history_months - 1)
+    return date(start.year - 1, 1, 1), date(end.year + 1, 12, 31)
+
+
 def init_database(engine: Engine, config: Config) -> None:
     """Drop and recreate schemas, seed the calendar and write planning parameters."""
     run_sql_file(engine, config.paths.sql_dir / "schema.sql")
-    run_sql_file(engine, config.paths.sql_dir / "seed.sql")
+    start, end = calendar_range(config)
+    seed_sql = (config.paths.sql_dir / "seed.sql").read_text(encoding="utf-8")
+    with engine.begin() as conn:
+        conn.execute(text(seed_sql), {"start_date": start, "end_date": end})
+    logger.info("Seeded calendar %s to %s", start, end)
     with engine.begin() as conn:
         conn.execute(
             text(
