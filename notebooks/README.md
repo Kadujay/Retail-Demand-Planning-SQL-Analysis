@@ -1,5 +1,8 @@
 # Notebooks
 
+Install the optional notebook dependencies first:
+`pip install -r requirements-notebooks.txt`.
+
 Notebooks are for **exploration and presentation only**. All business logic
 lives in `src/` and is unit-tested; notebooks import it rather than
 re-implementing it.

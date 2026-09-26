@@ -485,75 +485,7 @@ demand plan or financial reconciliation).
 
 ## 16. Data model
 
-*Phase 3 — finalised in `sql/schema.sql`. Draft ERD:*
-
-```mermaid
-erDiagram
-    dim_supplier ||--o{ dim_product : "primary supplier of"
-    dim_product  ||--o{ fact_demand : "has"
-    dim_date     ||--o{ fact_demand : "month"
-    dim_product  ||--o{ fact_inventory : "snapshot of"
-    dim_date     ||--o{ fact_inventory : "month end"
-    dim_supplier ||--o{ fact_purchase_order : "receives"
-    dim_product  ||--o{ fact_purchase_order : "ordered"
-    fact_purchase_order ||--o{ fact_supplier_delivery : "fulfilled by"
-
-    dim_product {
-        text sku_id PK
-        text category
-        text supplier_id FK
-        numeric unit_cost
-        numeric unit_price
-        int moq
-        int order_multiple
-        int supplier_lead_time_days
-        date launch_date
-        text lifecycle_status
-    }
-    dim_supplier {
-        text supplier_id PK
-        text supplier_name
-        text region
-        int quoted_lead_time_days
-    }
-    dim_date {
-        date month_start PK
-        int year
-        int month
-        int quarter
-    }
-    fact_demand {
-        text sku_id FK
-        date month_start FK
-        int ordered_qty
-        int shipped_qty
-    }
-    fact_inventory {
-        text sku_id FK
-        date month_end FK
-        int on_hand_qty
-        int allocated_qty
-    }
-    fact_purchase_order {
-        text po_line_id PK
-        text po_number
-        text sku_id FK
-        text supplier_id FK
-        date order_date
-        date promised_date
-        int ordered_qty
-        numeric unit_price
-        text status
-    }
-    fact_supplier_delivery {
-        text receipt_id PK
-        text po_line_id FK
-        date receipt_date
-        int received_qty
-    }
-```
-
-Month-end inventory snapshots (24 months) support the inventory trend,
-average inventory for turns/DIO, and stockout-month history; the latest
-snapshot is the as-of position for planning. The raw files behind these
-tables, with column definitions, are described in [`data/README.md`](../data/README.md).
+*Implemented in Phase 3.* The relational model (tables, grain, keys,
+constraints, indexes, ERD) and the raw → core → analytics lineage are
+documented in [`database_architecture.md`](database_architecture.md); column
+definitions in [`data_dictionary.md`](data_dictionary.md).

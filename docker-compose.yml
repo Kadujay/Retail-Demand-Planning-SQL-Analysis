@@ -1,0 +1,30 @@
+# Local PostgreSQL for the Inventory Control Tower.
+#
+#   cp .env.example .env      # then set POSTGRES_PASSWORD in .env
+#   docker compose up -d      # start (data persists in the named volume)
+#   docker compose down       # stop, keep data
+#   docker compose down -v    # stop and delete the data volume
+#
+# Credentials come from .env (git-ignored). Nothing secret is committed.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ict-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-inventory_control_tower}
+      POSTGRES_USER: ${POSTGRES_USER:-ict}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (copy .env.example)}
+    ports:
+      # Bound to localhost only: the database is not exposed to the network.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - ict_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  ict_pgdata:

@@ -28,3 +28,16 @@ use X?" questions.
 | 20 | Volume dispersion | `volume ∝ cost^−0.45`, log-sd 1.3 | `cost^−0.6`, log-sd 0.8 | First version put 80% of value in 40% of SKUs — too flat for a distributor; now ~24% |
 | 21 | Answer key | Separate `synthetic_truth/` folder | Columns on the raw tables | Prevents the generator's labels from leaking into analysis |
 | 22 | Dirty data | Clean generator; defects injected in tests | Randomly dirty generator | Keeps analysis interpretable while proving each validation check works |
+| 23 | Database layout | Three schemas: `core`, `analytics`, `audit` | Staging/ODS/mart warehouse layers | Shows lineage without enterprise overhead; enough for ~300k rows |
+| 24 | Keys | Natural ERP keys (`SKU-00001`) | Surrogate integer keys | Stable, readable; no slowly changing history to track |
+| 25 | Calendar | Daily `dim_date` generated in SQL | Monthly calendar | Lead time and OTIF are measured in days |
+| 26 | Derived data | Views, not stored tables | ETL into summary tables | Always current, logic visible, small data; can become materialized views later |
+| 27 | Load gate | Python validation (ERROR blocks) + DB constraints as second line | DB constraints only | Cross-table and statistical rules need code; warnings must not block loads |
+| 28 | Bad data | Refuse and record in `audit` | Silently fix or drop rows | Silent fixes hide source-system problems and break lineage |
+| 29 | Load mechanics | One transaction, PostgreSQL `COPY` from CSV | Row-by-row inserts; per-table commits | Fast, and a failure never leaves half-new data |
+| 30 | SQL thresholds | `analytics.planning_parameter` written from `config.py` | Literals in SQL | One source of truth for Python and SQL |
+| 31 | SQL reorder point | Uniform 95% screen, clearly labelled | Replicating the full Phase 7 policy in SQL | Keeps SQL simple; avoids two diverging policy implementations |
+| 32 | OTIF population | Closed lines + open lines past promise | Closed lines only | Overdue open lines are failures, not "not yet measured" |
+| 33 | Output formats | CSV for small answers (recruiter-readable), Parquet for SKU-month datasets | CSV only | Parquet keeps column types (dates, booleans, decimals) and is ~4.6× smaller (demand panel: 3.2 MB vs 14.6 MB CSV) |
+| 34 | Dependencies | `requirements.in` → pip-compile → pinned `requirements.txt` | Hand-pinned list | Readable intent plus a reproducible lock including transitive packages |
+| 35 | Dirty data | Separate `data/raw_dirty/` copy, opt-in flag | Dirty data in `data/raw/` | The analytical default can never be contaminated |

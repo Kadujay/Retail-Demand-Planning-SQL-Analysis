@@ -1,0 +1,16 @@
+variability_rank,supplier_id,region,po_lines,avg_lead_time_days,lead_time_std_days,lead_time_cv,variability_flag
+1,SUP-008,Domestic,1502,24.1,17.3,0.72,HIGH
+2,SUP-025,Domestic,133,15.5,8.5,0.55,HIGH
+3,SUP-004,Domestic,1643,28.9,14.5,0.5,HIGH
+4,SUP-041,Domestic,1453,9.5,4.5,0.47,HIGH
+5,SUP-007,Domestic,699,68.8,32.6,0.47,HIGH
+7,SUP-032,Domestic,287,31.1,12.7,0.41,HIGH
+6,SUP-017,Domestic,684,12.4,5.1,0.41,HIGH
+8,SUP-003,Domestic,316,28.7,10.7,0.37,HIGH
+9,SUP-023,Domestic,792,19.0,6.9,0.36,HIGH
+10,SUP-048,Domestic,410,8.2,2.9,0.35,HIGH
+11,SUP-037,Domestic,406,17.0,5.9,0.35,HIGH
+12,SUP-028,Domestic,166,75.5,25.5,0.34,HIGH
+13,SUP-039,Domestic,206,17.0,5.7,0.34,HIGH
+14,SUP-034,Domestic,1424,16.8,5.4,0.32,HIGH
+15,SUP-035,Domestic,104,40.7,12.4,0.3,HIGH

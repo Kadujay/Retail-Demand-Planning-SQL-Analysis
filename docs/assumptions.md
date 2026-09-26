@@ -92,10 +92,53 @@ checked by realism tests with deliberately broad bands.
 
 ### What the synthetic data does **not** contain
 
-- **Dirty data.** The generator is clean by design; the validation suite is
-  proven by injecting defects in tests. Real ERP data would also have
-  duplicates, unit-of-measure errors and backdated transactions.
+- **Dirty data by default.** The default extract is clean so analysis stays
+  interpretable. An optional dirty copy (below) shows how the pipeline deals
+  with realistic ERP defects.
 - Customer-level detail, prices that change over time, returns, multi-site stock.
+
+## Optional dirty-data mode (Phase 3)
+
+`python -m src.data_generation --dirty` writes a copy of the extract to
+`data/raw_dirty/` with **25 documented defects**. The clean extract in
+`data/raw/` is untouched and remains the default for all analysis. Defects
+use an independent random stream derived from the seed, so they are
+reproducible and never change the clean data. The manifest (which row, which
+column, before/after, which check should catch it) is
+`data/synthetic_truth/injected_defects.csv`.
+
+| Defect | Count | Business explanation | Caught by (severity) | Side-effects also flagged |
+|---|---|---|---|---|
+| Duplicate receipt | 5 | Receipt posted twice (double scan, re-post after timeout); overstates stock and fill rate | `duplicate_receipt` (ERROR) | `over_receipt` (WARNING) |
+| Stale open PO | 4 | Line never shipped and never cancelled; phantom supply in inventory position | `stale_open_po` (WARNING) | — |
+| Unit-of-measure error | 3 | Receipt keyed in units instead of cases (× case pack) | `receipt_qty_implausible` (ERROR) | — |
+| Backdated receipt | 3 | Receipt dated before the PO (wrong date / back-posting) | `receipt_before_order` (ERROR) | `impossible_actual_lead_time` (ERROR) |
+| Missing optional field | 6 | Launch date / supplier region missing after hurried set-up or migration | `missing_optional_fields` (WARNING) | — |
+| Invalid supplier code | 2 | Typo in supplier code (`SUP-O12`); spend cannot be attributed | `missing_supplier` (ERROR) | — |
+| Wrong supplier reference | 2 | Real but wrong supplier keyed on the PO; OTIF credited to the wrong supplier | `po_supplier_mismatch` (WARNING) | — |
+
+The dirty extract is **REJECTED** (5 failed checks), so nothing is loaded.
+Warning-only data (e.g. just a missing region) is loaded as
+**ACCEPTED_WITH_WARNINGS**. Tests verify that every injected defect is caught
+by its named check with exactly the injected count, and that each of those
+checks reports zero on the clean data.
+
+## Database and SQL layer (Phase 3)
+
+| # | Assumption | Why | Consequence |
+|---|---|---|---|
+| Q1 | "Today" = the latest month-end snapshot (2025-12-31), never `now()` | Results must be reproducible whenever queries run | Rerunning next year gives the same answers |
+| Q2 | SKU-month panels are dense from launch (zero months included) | Makes `ROWS BETWEEN n PRECEDING` equal to n calendar months | Guaranteed and tested in Phase 2 |
+| Q3 | Supplier spend = received quantity × PO price over the whole extract | Spend is what was actually bought | Open POs are shown separately as `open_po_value` |
+| Q4 | OTIF evaluates closed lines **and** open lines past their promise | Otherwise overdue open orders would flatter late suppliers | Open lines not yet due are excluded |
+| Q5 | Actual lead time only on complete lines (last receipt − order date) | Lead time is not known until the line is complete | Partial lines still open are excluded |
+| Q6 | Trailing demand = last 6 months (`SqlScreeningConfig`) | Recent behaviour for screening | New SKUs use the months they have |
+| Q7 | Screening ROP = `d × P + z × σ × √P`, one 95% service level for all SKUs, σ of raw monthly demand | A transparent first-pass screen before Phase 7 | Overstates σ for seasonal items; flags ~49% of active SKUs; Phase 7 replaces it |
+| Q8 | Screening excess = stock above 6 months of trailing demand | Simple, explainable screen | Phase 7 measures excess against the policy maximum |
+| Q9 | A stockout month = any month with shipped < ordered | Even a partial shortfall lost sales | Counts partial and full stockouts alike |
+| Q10 | A stockout is SUPPLIER_LATE only if the supplier promised delivery by the end of that month and missed it | Fair attribution of root cause | Other stockouts with open POs are planning misses |
+| Q11 | Validated data is loaded as-is (no silent corrections) | Fixes belong in the source system | Rejected data leaves the previous load in place |
+| Q12 | Open PO lines > 90 days past promise are not counted in inventory position | A planner would not rely on them | Shown as `stale_open_po_qty`; a real reorder is not suppressed by phantom supply |
 
 ## Statistical
 

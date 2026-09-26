@@ -143,7 +143,36 @@ Problems are ranked by **money at stake**, not SKU counts:
 3. **Systemic supplier causes**: high-spend *At Risk* suppliers.
 4. **Systemic forecast causes**: A/B items with tracking signal outside ±4.
 
-## 10. What success would look like
+## 10. Business rules the data layer preserves (Phase 3)
+
+The database and SQL keep the operational distinctions that make supply-chain
+analysis trustworthy:
+
+| Principle | How the data layer preserves it |
+|---|---|
+| Demand and shipments are different | `ordered_qty` and `shipped_qty` are separate columns; lost sales = the difference |
+| Stockouts make shipments understate demand | Rolling demand and forecasts use `ordered_qty`, never shipments |
+| Open POs affect inventory position | `inventory_position = on hand + open PO − allocated`; open qty derived from receipts |
+| Partial deliveries affect receipts | One row per receipt; OTIF sums receipts up to the original promise |
+| Supplier type affects lead time and reliability | Measured, not assumed: lead-time mean / P90 / CV and OTIF per supplier |
+| Product lifecycle affects demand | Dead-stock candidates derived from demand, not from the (stale) lifecycle flag |
+| MOQ can create excess | q11 flags open POs placed at MOQ that push cover above the limit |
+| Stale open POs inflate supply | Flagged in validation, **excluded from inventory position**, and reported separately (`stale_open_po_qty`) so they get chased or cancelled |
+
+### What the SQL layer tells management (seed 42)
+
+- **Service:** 90.5% unit fill rate; stockouts in 10% of SKU-months, costing
+  ≈ $19M of revenue over two years.
+- **Root cause is shared:** where a PO was already open during a stockout,
+  about half were supplier misses and half were POs placed too late or too
+  small (q12). Supplier management and planning parameters both need work.
+- **Working capital:** ≈ $17M of stock; 63% of it sits in the top 10% of SKUs;
+  ≈ $2.9M is above 6 months of supply and ≈ $1M has had no demand for 6 months.
+- **Suppliers:** strict line-level OTIF is 79%. Several of the largest suppliers
+  by spend are *At Risk* or *Watch* (q15), and their SKUs account for many of
+  the stockout months.
+
+## 11. What success would look like
 
 If the company adopted the recommendations, it would track (baseline values
 are filled in from the synthetic results in Phase 12):

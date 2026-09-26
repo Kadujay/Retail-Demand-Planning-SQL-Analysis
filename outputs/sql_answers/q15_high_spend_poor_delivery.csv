@@ -1,0 +1,12 @@
+supplier_id,region,spend,spend_share_pct,otif_pct,lead_time_cv,delivery_segment,sku_stockout_months_12m,skus_out_of_stock_now
+SUP-022,Domestic,13718192.0,12.1,85.5,0.27,WATCH,490.0,12
+SUP-034,Domestic,5602301.0,4.9,93.2,0.32,WATCH,172.0,6
+SUP-010,Domestic,5110928.0,4.5,89.0,0.24,WATCH,297.0,3
+SUP-007,Domestic,5093972.0,4.5,40.5,0.47,AT_RISK,223.0,17
+SUP-041,Domestic,4883756.0,4.3,75.8,0.47,AT_RISK,215.0,10
+SUP-043,Domestic,4263640.0,3.8,86.8,0.22,WATCH,235.0,3
+SUP-029,Import,4243097.0,3.7,54.3,0.16,AT_RISK,310.0,15
+SUP-049,Domestic,3564714.0,3.1,70.8,0.3,AT_RISK,182.0,0
+SUP-003,Domestic,3534714.0,3.1,56.2,0.37,AT_RISK,53.0,2
+SUP-015,Domestic,3239601.0,2.9,69.2,0.3,AT_RISK,251.0,10
+SUP-033,Domestic,3210026.0,2.8,68.3,0.22,AT_RISK,190.0,7

@@ -17,9 +17,10 @@ segmentation, forecasting, periodic-review safety stock, supplier OTIF,
 EOQ/MOQ lot sizing and working-capital analysis. Every formula is documented
 and defensible.
 
-> 🚧 **Build status:** Phases 1–2 of 12 complete (methodology, synthetic data and
-> data-quality checks). See the [roadmap](#roadmap). Analytical result sections
-> are placeholders until later phases.
+> 🚧 **Build status:** Phases 1–3 of 12 complete (methodology, synthetic data,
+> data-quality gate, PostgreSQL model and SQL analytics). See the
+> [roadmap](#roadmap). Python planning results (forecasts, safety stock,
+> replenishment) arrive in later phases.
 
 **In two minutes:** [business problem](#1-business-problem) →
 [what the system decides](#2-solution) → [methodology](docs/methodology.md) →
@@ -74,9 +75,10 @@ real-time logistics tracking platform.
 | Layer | Tools |
 |---|---|
 | Analytics | Python 3.11+, pandas, NumPy, SciPy, statsmodels |
-| Database | PostgreSQL (star schema, CTEs, window functions) |
+| Database | PostgreSQL 16 in Docker (star schema, constraints, CTEs, window functions) |
 | Reporting | Power BI (CSV / Parquet datasets + build guide) |
-| Quality | pytest, ruff, GitHub Actions |
+| Quality | pytest (incl. database tests), ruff, GitHub Actions with a PostgreSQL service |
+| Reproducibility | Seeded data, pinned lock file (`requirements.txt` via pip-tools) |
 
 No machine learning is used. With monthly univariate history, transparent
 methods that planners can explain and override are the right tool. See the
@@ -101,32 +103,27 @@ methods that planners can explain and override are the right tool. See the
 
 ## 5. Architecture
 
+**Data lineage**: raw data is never modified; each layer only reads the one before it.
+
 ```mermaid
 flowchart LR
-    subgraph Data
-        G[Synthetic data generator<br/>seeded, realistic patterns] --> V[Data validation<br/>quality report]
-        V --> PG[(PostgreSQL<br/>star schema)]
-    end
-    subgraph Analytics["Python analytics (src/)"]
-        V --> C[ABC / XYZ<br/>segmentation]
-        V --> F[Forecasting<br/>accuracy, bias, error σ]
-        V --> S[Supplier analytics<br/>OTIF, lead-time σ]
-        C --> SS[Safety stock &<br/>reorder point]
-        F --> SS
-        S --> SS
-        SS --> H[Inventory health<br/>excess, dead, risk]
-        SS --> R[Replenishment<br/>EOQ, MOQ, reasons]
-        H --> W[Working capital<br/>& scenarios]
-        R --> W
-    end
-    PG --> Q[SQL analysis<br/>business questions]
-    H & R & S & F & W --> O[outputs/*.csv, *.parquet]
-    O --> BI[Power BI<br/>4-page dashboard]
+    G["Synthetic ERP extract<br/>data/raw/*.csv"] --> V{"Validation<br/>47 checks"}
+    V -- REJECTED --> X["Nothing loaded<br/>reasons in audit.*"]
+    V -- ACCEPTED --> C[("PostgreSQL core.*<br/>7 constrained tables")]
+    C --> A["analytics.v_*<br/>8 SQL views"]
+    A --> Q["15 SQL answers<br/>outputs/sql_answers/"]
+    A --> P["Parquet datasets<br/>data/processed/"]
+    P --> PY["Python planning (Phases 4–9)<br/>ABC/XYZ · forecasts · safety stock<br/>health · replenishment · scenarios"]
+    PY --> O["outputs/*.csv"]
+    Q --> BI["Power BI<br/>4-page dashboard"]
+    O --> BI
 ```
+
+Database design, table grain and indexes: [docs/database_architecture.md](docs/database_architecture.md).
 
 ```
 ├── data/          raw/ and processed/ synthetic data (regenerated, not committed)
-├── sql/           schema, seed, transformations, analysis queries (PostgreSQL)
+├── sql/           schema (DDL), seed (calendar), transformations (views), analysis (15 questions)
 ├── src/           one module per business capability + pipeline orchestration
 ├── tests/         pytest unit tests for every business calculation
 ├── notebooks/     exploration & presentation (logic lives in src/)
@@ -142,26 +139,65 @@ and documented in [assumptions.md](docs/assumptions.md).
 
 ## 6. How to run
 
+Prerequisites: Python 3.11+, Docker (for PostgreSQL).
+
 ```bash
 git clone https://github.com/Kadujay/supply-chain-inventory-control-tower.git
 cd supply-chain-inventory-control-tower
+
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-pytest                      # run the test suite
-python -m src.pipeline      # generate synthetic data (seed 42) and validate it
-python -m src.pipeline --seed 7   # any other seed gives a different, equally realistic world
+cp .env.example .env              # set POSTGRES_PASSWORD (any local value)
+docker compose up -d              # PostgreSQL 16 on localhost:5432, data in a named volume
+
+python -m src.data_generation     # synthetic ERP extract (seed 42) -> data/raw/
+python -m src.data_validation     # 47 checks -> outputs/data_quality_report.csv (exit 1 if rejected)
+
+python -m src.database build      # init schema -> validated load -> views -> SQL answers -> Parquet
+pytest                            # 128 tests (database tests skip if PostgreSQL is not running)
 ```
 
-Generated data lands in `data/raw/` (git-ignored, reproducible); the
-data-quality report in `outputs/data_quality_report.csv`.
+`python -m src.database build` runs these steps, which can also be run one by one:
 
-PostgreSQL (from Phase 3):
+| Command | What it does |
+|---|---|
+| `python -m src.database init` | (Re)create schemas `core`, `analytics`, `audit`; seed the calendar; write planning parameters from `config.py` |
+| `python -m src.database load` | Validate `data/raw/`, then load `core.*` in one transaction (refused if validation fails) |
+| `python -m src.database transform` | Create / refresh the `analytics` views |
+| `python -m src.database analyze` | Run the 15 questions in `sql/analysis.sql` → `outputs/sql_answers/*.csv` |
+| `python -m src.database export` | Export analytical views → `data/processed/*.parquet` |
+
+Other options: `python -m src.data_generation --seed 7` (a different world),
+`psql -h localhost -U ict -d inventory_control_tower` (explore the data),
+`docker compose down -v` (remove the database).
+
+### See the validation gate reject bad data
 
 ```bash
-cp .env.example .env        # fill in local credentials; .env is git-ignored
-psql -d inventory_control_tower -f sql/schema.sql
+python -m src.data_generation --dirty        # adds data/raw_dirty/ with 25 documented ERP defects
+python -m src.data_validation --dirty        # -> REJECTED: every defect caught by a named check
+python -m src.database load --dirty          # -> refused; reasons stored in audit.data_quality_result
 ```
+
+The clean extract stays the default everywhere. Defects and their business
+explanations: [assumptions.md](docs/assumptions.md#optional-dirty-data-mode-phase-3).
+
+### Updating dependencies
+
+`requirements.in` lists the direct dependencies with version ranges.
+`requirements.txt` is the **generated lock file** (every package pinned,
+including transitive ones), and it is what CI installs. To upgrade:
+
+```bash
+pip install pip-tools
+pip-compile --strip-extras --no-emit-index-url --output-file requirements.txt requirements.in
+pip-compile --strip-extras --no-emit-index-url --output-file requirements-notebooks.txt requirements-notebooks.in
+pytest                                      # then commit the updated lock files
+```
+
+`requirements-notebooks.txt` (Jupyter, matplotlib) is optional and only needed
+to re-run the notebooks.
 
 ## Synthetic dataset at a glance
 
@@ -180,11 +216,28 @@ painted on. Details: [data/README.md](data/README.md) ·
 | Inventory value above 6 months of supply | ≈ 24% |
 | Dead-stock candidates (no demand in 6 months) | 238 SKUs, ≈ 6% of value |
 | PO lines received late / split | ≈ 15% / 5% |
-| Data-quality checks | 40 checks, 0 errors |
+| Data-quality checks | 47 checks, 0 errors → ACCEPTED |
 
 ## 7. Example outputs
 
-*Placeholder, populated with real result excerpts in Phases 11–12.*
+### SQL answers (Phase 3)
+
+Fifteen business questions answered in PostgreSQL. The answers are committed in
+[`outputs/sql_answers/`](outputs/sql_answers), and the queries are explained in the
+[SQL guide](docs/sql_guide.md).
+
+| Question | Answer (seed 42) |
+|---|---|
+| What service do customers get? | 90.5% unit fill rate; stockouts in 10% of SKU-months, ≈ $19M lost revenue over 2 years |
+| When a PO was already open, why did we still stock out? | ~Half supplier missed its promise (2,059 months), ~half PO placed too late/too small (1,759) |
+| Where is the working capital? | ≈ $17.3M on hand; top 10% of SKUs hold 63% of the value |
+| How much is excess / dead? | ≈ $2.9M above 6 months of supply (Janitorial and Electrical lead); ≈ $1.0M with no demand for 6 months |
+| Which suppliers need escalation? | 11 of the top-quartile-spend suppliers miss the 95% OTIF target; 7 are *At Risk* (< 85%) |
+| Which open POs will create excess? | Ranked list of lines that push cover above 6 months, ready to push out or cancel |
+
+### Planning outputs (later phases)
+
+*Placeholder, populated in Phases 4–11.*
 
 | Output | Answers |
 |---|---|
@@ -241,9 +294,11 @@ Full list: [assumptions.md](docs/assumptions.md).
 
 ## Interview discussion points
 
-There are prepared answers to 26 questions, including the ones experienced interviewers
+There are prepared answers to 34 questions, including the ones experienced interviewers
 ask: why the reorder point covers the review period, why safety stock uses forecast
-error, why no ML, EOQ vs. MOQ, and "how do you know your numbers are right?".
+error, why no ML, EOQ vs. MOQ, "how do you know your numbers are right?", and eight
+data/SQL questions (table grain, the validation gate, window functions, OTIF in SQL,
+root-causing stockouts).
 See **[docs/interview_guide.md](docs/interview_guide.md)**.
 
 ## Roadmap
@@ -252,7 +307,7 @@ See **[docs/interview_guide.md](docs/interview_guide.md)**.
 |---|---|---|
 | 1 | Architecture, methodology & documentation (reviewed and revised) | ✅ |
 | 2 | Synthetic data generation & data-quality checks | ✅ |
-| 3 | PostgreSQL schema & SQL analytics | ⏳ |
+| 3 | PostgreSQL (Docker) data layer, validation gate & SQL analytics | ✅ |
 | 4 | ABC / XYZ analysis | ⏳ |
 | 5 | Forecasting & accuracy | ⏳ |
 | 6 | Supplier analytics *(moved ahead: safety stock needs lead-time σ)* | ⏳ |
@@ -268,6 +323,9 @@ See **[docs/interview_guide.md](docs/interview_guide.md)**.
 | Document | Purpose |
 |---|---|
 | [Methodology](docs/methodology.md) | Every formula, specified before implementation |
+| [Database architecture](docs/database_architecture.md) | Lineage, tables, grain, keys, constraints, indexes |
+| [SQL guide](docs/sql_guide.md) | Every view and query: question, technique, how to explain it |
+| [Data dictionary](docs/data_dictionary.md) | Every column, raw → core → analytics |
 | [Business logic](docs/business_logic.md) | Context, stakeholders, decisions, trade-offs, prioritisation |
 | [KPI definitions](docs/kpi_definitions.md) | One definition per KPI, with owner and direction |
 | [Assumptions](docs/assumptions.md) | What is assumed, why, and what changes in reality |

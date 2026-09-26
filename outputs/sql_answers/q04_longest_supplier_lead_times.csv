@@ -1,0 +1,16 @@
+supplier_id,region,po_lines,quoted_lead_time_days,avg_lead_time_days,median_lead_time_days,p90_lead_time_days,avg_slippage_vs_promise_days
+SUP-013,Import,597,81,87.9,83.0,110.0,3.5
+SUP-005,Import,718,82,86.2,83.0,100.0,0.5
+SUP-011,Import,340,82,84.8,82.0,96.0,-0.1
+SUP-046,Import,947,83,84.3,83.0,88.0,-2.3
+SUP-026,Import,296,80,84.3,81.0,98.3,0.8
+SUP-044,Import,29,73,83.4,77.0,100.5,8.5
+SUP-029,Import,1351,73,82.3,77.0,103.0,5.6
+SUP-047,Import,54,68,81.1,74.0,105.2,10.6
+SUP-028,Domestic,166,49,75.5,70.0,113.6,22.9
+SUP-007,Domestic,699,45,68.8,53.5,114.0,20.7
+SUP-009,Import,394,55,63.7,60.0,78.0,5.0
+SUP-040,Import,234,52,55.9,55.0,65.3,-0.4
+SUP-018,Import,414,52,54.9,53.0,63.0,-0.7
+SUP-021,Import,893,47,49.9,49.0,57.0,-1.0
+SUP-035,Domestic,104,33,40.7,35.0,55.0,4.3

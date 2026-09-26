@@ -15,6 +15,32 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12"]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: inventory_control_tower
+          POSTGRES_USER: ict
+          # Throwaway password for an ephemeral CI container — not a real credential.
+          POSTGRES_PASSWORD: ci_only_not_secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ict"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: inventory_control_tower
+      POSTGRES_USER: ict
+      POSTGRES_PASSWORD: ci_only_not_secret
+      # Database tests must run in CI; never silently skip them.
+      ICT_REQUIRE_DB: "1"
+
     steps:
       - uses: actions/checkout@v4
 
@@ -23,8 +49,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
+          cache-dependency-path: requirements.txt
 
-      - name: Install dependencies
+      - name: Install locked dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
@@ -34,5 +61,14 @@ jobs:
           ruff check src tests
           ruff format --check src tests
 
-      - name: Unit tests (pytest)
+      - name: Unit, data and database tests (pytest)
         run: pytest
+
+      - name: End-to-end smoke run (generate -> validate -> load -> SQL)
+        run: |
+          python -m src.data_generation --dirty
+          python -m src.data_validation
+          if python -m src.data_validation --dirty; then
+            echo "Dirty data should have been rejected" && exit 1
+          fi
+          python -m src.database build

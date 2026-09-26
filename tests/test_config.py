@@ -114,6 +114,9 @@ def test_database_url_reads_environment(monkeypatch):
     "module",
     [
         "src.pipeline",
+        "src.database",
+        "src.dirty_data",
+        "src.raw_data",
         "src.data_generation",
         "src.data_validation",
         "src.abc_xyz",

@@ -1,0 +1,9 @@
+excess_rank,category,skus,skus_with_excess,inventory_value,excess_value,excess_pct_of_category,pct_of_all_excess
+1,Janitorial & Facility,574,137,2835296.0,724744.0,25.6,24.9
+2,Electrical,798,85,3564071.0,499996.0,14.0,17.2
+3,Plumbing,492,76,2124636.0,494644.0,23.3,17.0
+4,Safety & PPE,648,65,2237085.0,323089.0,14.4,11.1
+5,Fasteners & Fixings,1026,149,1651740.0,251692.0,15.2,8.6
+6,HVAC & Climate,470,76,2058561.0,234375.0,11.4,8.0
+7,Power Tools & Accessories,393,92,1400278.0,210849.0,15.1,7.2
+8,Hand Tools,599,98,1419900.0,175674.0,12.4,6.0

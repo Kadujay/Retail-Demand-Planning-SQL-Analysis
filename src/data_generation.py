@@ -31,12 +31,13 @@ from __future__ import annotations
 import argparse
 import logging
 from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from src.config import DAYS_PER_MONTH, DataGenerationConfig, PathConfig
+from src.config import DAYS_PER_MONTH, DataGenerationConfig, DirtyDataConfig, PathConfig
+from src.dirty_data import inject_realistic_defects
+from src.raw_data import save_tables
 
 logger = logging.getLogger(__name__)
 
@@ -859,15 +860,27 @@ class SyntheticDataset:
 
     def save(self, paths: PathConfig) -> None:
         """Write raw tables and truth tables to their separate folders."""
-        for folder, tables in (
-            (paths.raw_data_dir, self.raw_tables()),
-            (paths.synthetic_truth_dir, self.truth_tables()),
-        ):
-            Path(folder).mkdir(parents=True, exist_ok=True)
-            for name, table in tables.items():
-                table.to_csv(Path(folder) / f"{name}.csv", index=False, date_format="%Y-%m-%d")
+        save_tables(self.raw_tables(), paths.raw_data_dir)
+        save_tables(self.truth_tables(), paths.synthetic_truth_dir)
         logger.info(
             "Saved raw tables to %s and truth to %s", paths.raw_data_dir, paths.synthetic_truth_dir
+        )
+
+    def save_dirty(
+        self, paths: PathConfig, seed: int, config: DirtyDataConfig | None = None
+    ) -> None:
+        """Write a dirty copy (documented ERP defects) to ``raw_dirty_data_dir``.
+
+        The clean raw folder is untouched; the defect manifest is written
+        with the synthetic truth so it can never be mistaken for raw data.
+        """
+        dirty = inject_realistic_defects(self.raw_tables(), self.as_of, seed, config)
+        save_tables(dirty.tables, paths.raw_dirty_data_dir)
+        save_tables({"injected_defects": dirty.manifest}, paths.synthetic_truth_dir)
+        logger.info(
+            "Saved dirty copy (%d injected defects) to %s",
+            len(dirty.manifest),
+            paths.raw_dirty_data_dir,
         )
 
 
@@ -958,9 +971,14 @@ def generate_dataset(config: DataGenerationConfig | None = None) -> SyntheticDat
 
 
 def main() -> None:
-    """CLI: ``python -m src.data_generation [--seed N]``."""
+    """CLI: ``python -m src.data_generation [--seed N] [--dirty]``."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--seed", type=int, default=None, help="random seed (default 42)")
+    parser.add_argument(
+        "--dirty",
+        action="store_true",
+        help="also write a copy with documented ERP defects to data/raw_dirty/",
+    )
     args = parser.parse_args()
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
@@ -968,7 +986,11 @@ def main() -> None:
     config = (
         DataGenerationConfig() if args.seed is None else DataGenerationConfig(random_seed=args.seed)
     )
-    generate_dataset(config).save(PathConfig())
+    dataset = generate_dataset(config)
+    paths = PathConfig()
+    dataset.save(paths)
+    if args.dirty:
+        dataset.save_dirty(paths, config.random_seed)
 
 
 if __name__ == "__main__":

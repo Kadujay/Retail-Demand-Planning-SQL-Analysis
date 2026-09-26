@@ -1,0 +1,5 @@
+# Optional: only needed to run / re-execute the notebooks.
+# Constrained to the versions locked in requirements.txt.
+-c requirements.txt
+jupyter>=1.0
+matplotlib>=3.8

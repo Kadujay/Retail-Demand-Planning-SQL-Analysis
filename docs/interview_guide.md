@@ -221,6 +221,68 @@ SKUs; higher service level always raises safety stock).
 
 ---
 
+## Data and SQL questions
+
+### 27. What is the grain of your fact tables?
+
+`fact_demand`: one SKU per month. `fact_inventory`: one SKU per month end.
+`fact_purchase_order`: one PO line. `fact_supplier_delivery`: one goods
+receipt, so a partial delivery is several rows for one PO line. The grain is
+enforced by the primary keys and tested. Getting grain wrong is how totals get
+double-counted.
+
+### 28. Why keep demand and shipments separate?
+
+Because stockouts cap shipments. If I forecast on shipments, last year's
+stockouts become next year's lower forecast, and the stockout repeats. Demand
+(customer orders) is the signal; the gap is lost sales.
+
+### 29. How do you stop bad data from reaching the analysis?
+
+Validation runs before loading: 47 checks, each ERROR, WARNING or INFO. Any
+ERROR means REJECTED: nothing is loaded, the reasons go to an audit table, and
+the command exits with an error. Warnings load but are recorded. Database
+constraints (keys, CHECKs) are the second line of defence, and the load is one
+transaction, so it is all or nothing. I refuse bad data rather than silently
+fixing it, because fixes belong in the source system.
+
+### 30. Explain a window function you used.
+
+The 3-month rolling average: `AVG(ordered_qty) OVER (PARTITION BY sku_id ORDER
+BY month_start ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)`. For each SKU,
+order its months and average each month with the two before it; `PARTITION
+BY` restarts per SKU. It works because every SKU has a row for every month
+since launch. Others: `LAG` for month-over-month change, a running `SUM` for
+the supplier-spend Pareto, `PERCENT_RANK` within category for unusual
+inventory.
+
+### 31. How did you calculate OTIF in SQL, and what did you watch out for?
+
+Per PO line, sum the quantity received by the original promised date; OTIF if
+that covers the ordered quantity. Two traps: split deliveries (sum them, don't
+look at one receipt) and open lines already overdue (count them as failures,
+otherwise a supplier looks better the later it is).
+
+### 32. A stockout happened although a PO was open. Whose fault?
+
+If the supplier promised delivery by the end of that month and missed it, it
+was the supplier. Otherwise the PO was placed too late or too small, which is a
+planning issue. In this data it is roughly half and half, which is why I
+wouldn't let either team blame the other.
+
+### 33. Why views instead of tables for the analytics layer?
+
+About 300k rows: views are fast enough, can never go stale, and keep the
+logic readable in one SQL file. If data grew, I'd turn the heavy ones into
+materialized views without changing the consumers.
+
+### 34. Why is the SQL reorder point different from the Python one?
+
+The SQL version is a transparent screen: one 95% service level and demand σ.
+It lists candidates quickly. The Python policy (Phase 7) uses class-based
+service levels, forecast-error σ and lead-time variability. I kept the
+screen simple on purpose rather than maintaining two copies of the full policy.
+
 ## Fill rate vs. cycle service level
 
 Cycle service level = probability of no stockout in a replenishment cycle.

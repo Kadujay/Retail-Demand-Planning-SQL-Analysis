@@ -22,7 +22,9 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Literal
 
+from dotenv import load_dotenv
 from scipy.stats import norm
+from sqlalchemy.engine import URL
 
 # --------------------------------------------------------------------------
 # Paths
@@ -61,7 +63,19 @@ class PathConfig:
             "SYNTHETIC_TRUTH_DIR", PROJECT_ROOT / "data" / "synthetic_truth"
         )
     )
+    # Optional "dirty" copy of the raw data (realistic ERP defects injected).
+    # Never read by the analytical pipeline unless explicitly requested.
+    raw_dirty_data_dir: Path = field(
+        default_factory=lambda: _path_from_env(
+            "RAW_DIRTY_DATA_DIR", PROJECT_ROOT / "data" / "raw_dirty"
+        )
+    )
     sql_dir: Path = PROJECT_ROOT / "sql"
+
+    @property
+    def sql_answers_dir(self) -> Path:
+        """Small CSV answers to the SQL business questions (committed)."""
+        return self.output_dir / "sql_answers"
 
 
 # --------------------------------------------------------------------------
@@ -101,6 +115,68 @@ class DataGenerationConfig:
             raise ValueError("n_history_months must be >= 13 (seasonality needs > 1 year)")
         if self.burn_in_months < 0:
             raise ValueError("burn_in_months must be >= 0")
+
+
+# --------------------------------------------------------------------------
+# Optional dirty-data mode
+# --------------------------------------------------------------------------
+@dataclass(frozen=True)
+class DirtyDataConfig:
+    """How many realistic ERP defects to inject in ``--dirty`` mode.
+
+    Deliberately small: the point is to prove each defect is detected, not
+    to corrupt the dataset. Each defect type is documented in
+    docs/assumptions.md and src/dirty_data.py.
+    """
+
+    duplicate_receipts: int = 5
+    stale_open_pos: int = 4
+    unit_of_measure_errors: int = 3
+    backdated_receipts: int = 3
+    missing_optional_fields: int = 6
+    incorrect_supplier_references: int = 4
+
+
+# --------------------------------------------------------------------------
+# Data-quality rules
+# --------------------------------------------------------------------------
+@dataclass(frozen=True)
+class DataQualityConfig:
+    """Thresholds used by the validation framework (src/data_validation.py)."""
+
+    # Longest credible lead time; beyond a year is almost certainly a
+    # data-entry error, not a slow supplier.
+    max_credible_lead_time_days: int = 365
+    # Receiving slightly more than ordered happens (overage); more than 5%
+    # is suspicious.
+    over_receipt_tolerance: float = 0.05
+    # Receiving 3x the ordered quantity is not an overage: it is almost
+    # always a unit-of-measure error (cases keyed as units or vice versa).
+    implausible_receipt_multiple: float = 3.0
+    # An open PO line this many days past its promised date is "stale":
+    # it inflates inventory position with supply that will likely never come.
+    stale_open_po_days: int = 90
+
+
+# --------------------------------------------------------------------------
+# SQL screening layer
+# --------------------------------------------------------------------------
+@dataclass(frozen=True)
+class SqlScreeningConfig:
+    """Parameters for the first-pass SQL screens (sql/transformations.sql).
+
+    The SQL layer screens with a simple, uniform rule so problems can be
+    listed before the full Python planning logic exists. Phase 7 replaces
+    the screening reorder point with the class-based, forecast-error policy.
+    """
+
+    service_level: float = 0.95
+    trailing_demand_months: int = 6
+    high_cover_months: float = 6.0
+
+    def __post_init__(self) -> None:
+        if not 0 < self.service_level < 1:
+            raise ValueError("service_level must be in (0, 1)")
 
 
 # --------------------------------------------------------------------------
@@ -369,6 +445,9 @@ class Config:
     supplier: SupplierConfig = field(default_factory=SupplierConfig)
     replenishment: ReplenishmentConfig = field(default_factory=ReplenishmentConfig)
     working_capital: WorkingCapitalConfig = field(default_factory=WorkingCapitalConfig)
+    dirty_data: DirtyDataConfig = field(default_factory=DirtyDataConfig)
+    data_quality: DataQualityConfig = field(default_factory=DataQualityConfig)
+    sql_screening: SqlScreeningConfig = field(default_factory=SqlScreeningConfig)
 
 
 def get_config() -> Config:
@@ -376,14 +455,22 @@ def get_config() -> Config:
     return Config()
 
 
-def get_database_url() -> str:
+def get_database_url(database: str | None = None) -> str:
     """Build the PostgreSQL connection URL from environment variables.
 
     Credentials are never hard-coded; copy ``.env.example`` to ``.env``.
+    Variables already set in the environment take precedence over ``.env``.
+
+    Args:
+        database: Override the database name (tests use a separate database).
     """
-    user = os.getenv("POSTGRES_USER", "postgres")
-    password = os.getenv("POSTGRES_PASSWORD", "")
-    host = os.getenv("POSTGRES_HOST", "localhost")
-    port = os.getenv("POSTGRES_PORT", "5432")
-    database = os.getenv("POSTGRES_DB", "inventory_control_tower")
-    return f"postgresql+psycopg://{user}:{password}@{host}:{port}/{database}"
+    load_dotenv(PROJECT_ROOT / ".env", override=False)
+    url = URL.create(
+        "postgresql+psycopg",
+        username=os.getenv("POSTGRES_USER", "ict"),
+        password=os.getenv("POSTGRES_PASSWORD") or None,
+        host=os.getenv("POSTGRES_HOST", "localhost"),
+        port=int(os.getenv("POSTGRES_PORT", "5432")),
+        database=database or os.getenv("POSTGRES_DB", "inventory_control_tower"),
+    )
+    return url.render_as_string(hide_password=False)

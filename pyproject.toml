@@ -14,6 +14,7 @@ Repository = "https://github.com/Kadujay/supply-chain-inventory-control-tower"
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-ra"
+markers = ["database: needs PostgreSQL (docker compose up -d); skipped if unavailable unless ICT_REQUIRE_DB=1"]
 
 [tool.ruff]
 line-length = 100
